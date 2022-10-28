@@ -3,7 +3,6 @@
 use ink_lang as ink;
 
 
-
 #[ink::contract]
 mod todo_contract {
 
@@ -55,8 +54,38 @@ mod todo_contract {
                 };
                 user
             }
+            pub fn get_user_on_error() -> User {
+                User {
+                    first_name: String::from("null"),
+                    last_name: String::from("null"),
+                    email: String::from("null"),
+                    age: 0
+                }
+            }
         }
 
+    }
+
+    /// Struct and its implementation for storing user tasks
+    struct Task {
+        task_name: String,
+        task_date: String,
+        is_done: bool
+    }
+
+    /// Traits
+    trait TaskManagement {
+        fn new() -> Self;
+    }
+
+    impl TaskManagement for Task {
+        fn new() -> Self {
+            Task {
+                task_name: String::from("Init"),
+                task_date: String::from("Init"),
+                is_done: false
+            }
+        }
     }
 
     use ink_storage::Mapping;
@@ -94,10 +123,17 @@ mod todo_contract {
             String::from("Works")
         }
 
-        // #[ink(message)]
-        // pub fn get_my_account(&self) -> users::User {
-        //     let 
-        // }
+        #[ink(message)]
+        pub fn get_my_account(&self) -> users::User {
+            match self.user.get(Self::env().caller()) {
+                Some(data) => {
+                    return data
+                },
+                None => {
+                    return users::User::get_user_on_error()
+                }
+            }
+        }
 
     }
 
