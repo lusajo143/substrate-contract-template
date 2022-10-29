@@ -8,6 +8,7 @@ mod todo_contract {
 
     use core::iter::Map;
 
+    use ink_env::caller;
     use ink_prelude::{
         string::{
             String,
@@ -77,7 +78,7 @@ mod todo_contract {
     /// Struct and its implementation for storing user tasks
     #[derive(Debug, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
     #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
-    struct Task {
+    pub struct Task {
         task_name: String,
         task_date: String,
         is_done: bool
@@ -108,6 +109,8 @@ mod todo_contract {
 
 
     /// Responses
+    #[derive(Debug, Clone, Encode, Decode, SpreadLayout, PackedLayout)]
+    #[cfg_attr(feature = "std", derive(scale_info::TypeInfo))]
     pub struct BaseResponse {
         code: u32,
         message: String
@@ -130,11 +133,13 @@ mod todo_contract {
     pub const UPDATED_STATUS: &str = "Updated successfully!";
     pub const NULL_STATUS: &str = "Null Argument!";
     pub const NOT_FOUND_STATUS: &str = "Not found";
+    pub const DUPLICATE_STATUS: &str = "Duplicate data!";
     pub const INTERNAL_ERROR_STATUS: &str = "Internal Constract Error!";
     
     pub const SUCCESS_CODE: u32 = 9000;
     pub const NULL_CODE: u32 = 9001;
     pub const NOT_FOUND_CODE: u32 = 9002;
+    pub const DUPLICATE_CODE: u32 = 9003;
     pub const INTERNAL_ERROR_CODE: u32 = 9005;
 
 
@@ -150,7 +155,7 @@ mod todo_contract {
     #[derive(SpreadAllocate)]
     pub struct TodoContract {
         user: Mapping<AccountId, users::User>,
-        tasks: Mapping<AccountId, Task>
+        tasks: Mapping<AccountId, Vec<Task>>
     }
 
     impl TodoContract {
@@ -189,8 +194,90 @@ mod todo_contract {
             
         }
 
-        // #[ink(message)]
-        // pub fn add_task(&self) -> 
+        #[ink(message)]
+        pub fn register_user(&mut self,
+            first_name: String,
+            last_name: String,
+            email: String,
+            age: u32) -> BaseResponse {
+                match self.user.get(Self::env().caller()) {
+                    Some(user) => {
+                        BaseResponse {
+                            code: DUPLICATE_CODE,
+                            message: String::from(DUPLICATE_STATUS)
+                        }
+                    },
+                    None => {
+                        let user = users::User::new(
+                            first_name,
+                            last_name,
+                            email,
+                            age
+                        );
+                        let mut task = Task::new();
+                        task.task_name = String::from("Init");
+                        task.task_date = String::from("Init");
+                        task.is_done = false;
+
+                        let mut initial_task: Vec<Task> = Vec::new();
+                        initial_task.push(task);
+
+                        self.user.insert(Self::env().caller(), &user);
+                        self.tasks.insert(Self::env().caller(), &initial_task);
+                        BaseResponse {
+                            code: SUCCESS_CODE,
+                            message: String::from(CREATED_STATUS)
+                        }
+                    }
+                }
+            }
+
+        #[ink(message)]
+        pub fn add_task(&mut self, task_name: String,
+            task_date: String) -> BaseResponse {
+            match self.tasks.get(Self::env().caller()) {
+                Some(mut my_tasks) => {
+                    let mut task = Task::new();
+                    task.task_name = task_name.clone();
+                    task.task_date = task_date.clone();
+                    task.is_done = false;
+                    my_tasks.push(task);
+                    self.tasks.remove(Self::env().caller());
+                    self.tasks.insert(Self::env().caller(), &my_tasks);
+                    BaseResponse {
+                        code: SUCCESS_CODE,
+                        message: String::from(CREATED_STATUS)
+                    }
+                },
+                None => {
+                    BaseResponse {
+                        code: INTERNAL_ERROR_CODE,
+                        message: String::from(INTERNAL_ERROR_STATUS)
+                    }
+                }
+            }
+        }
+
+        #[ink(message)]
+        pub fn get_my_tasks(&self) -> DataResponse<Vec<Task>> {
+            match self.tasks.get(Self::env().caller()) {
+                Some(tasks) => {
+                    DataResponse {
+                        code: SUCCESS_CODE,
+                        message: String::from(OPERATION_STATUS),
+                        data: tasks
+                    }
+                },
+                None => {
+                    let tasks: Vec<Task> = Vec::new();
+                    DataResponse {
+                        code: INTERNAL_ERROR_CODE,
+                        message: String::from(NOT_FOUND_STATUS),
+                        data: tasks
+                    }
+                }
+            }
+        }
 
     }
 
